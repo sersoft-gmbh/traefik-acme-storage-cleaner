@@ -37,7 +37,8 @@ traefik-acme-storage-cleaner /path/to/acme1.json /path/to/acme2.json
 
 ### Configure Parallel Workers
 
-By default, the tool uses ncpu workers to process multiple files in parallel.
+By default, the tool uses the number of available CPUs as workers to process multiple files in parallel.
+This respects container CPU limits when running in Docker.
 If you want to limit the number of workers, you can use the `-workers` flag:
 
 ```bash
