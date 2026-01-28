@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -14,9 +15,10 @@ import (
 	"github.com/traefik/traefik/v3/pkg/types"
 )
 
-const (
-	defaultWorkers = 4
-)
+func defaultWorkers() int {
+	// GOMAXPROCS(0) returns the current setting, which respects container CPU limits
+	return runtime.GOMAXPROCS(0)
+}
 
 type cleanerResult struct {
 	filename       string
@@ -28,7 +30,7 @@ type cleanerResult struct {
 
 func main() {
 	var workers int
-	flag.IntVar(&workers, "workers", defaultWorkers, "Number of parallel workers")
+	flag.IntVar(&workers, "workers", defaultWorkers(), "Number of parallel workers")
 	flag.Parse()
 
 	files := flag.Args()
