@@ -8,6 +8,9 @@
 *.so
 *.dylib
 
+# Binary output
+traefik-acme-storage-cleaner
+
 # Test binary, built with `go test -c`
 *.test
 
