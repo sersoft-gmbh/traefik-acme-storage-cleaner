@@ -6,7 +6,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"runtime"
 	"sync"
@@ -34,31 +33,33 @@ type config struct {
 	workers int
 }
 
-// createFlagSet creates a new FlagSet with the application's flags defined.
-func createFlagSet(name string) *flag.FlagSet {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.Int("workers", defaultWorkers(), "Number of parallel workers")
-	return fs
-}
-
 // parseArgs parses command-line arguments and returns the configuration.
-// Returns nil if arguments are invalid (help/usage should be displayed).
+// Returns nil if arguments are invalid (help/usage has been displayed).
 func parseArgs(args []string) *config {
-	fs := createFlagSet(args[0])
-	fs.SetOutput(io.Discard) // Suppress FlagSet's own output; main() handles usage display
+	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	workers := fs.Int("workers", defaultWorkers(), "Number of parallel workers")
 	
 	if err := fs.Parse(args[1:]); err != nil {
+		// flag.ErrHelp is returned when -h or --help is used
+		if err == flag.ErrHelp {
+			fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", args[0])
+			fmt.Fprintf(os.Stderr, "\nOptions:\n")
+			fs.PrintDefaults()
+		}
 		return nil
 	}
 
 	files := fs.Args()
 	if len(files) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		fs.PrintDefaults()
 		return nil
 	}
 
 	// Adjust worker count
-	workersFlag := fs.Lookup("workers")
-	w := workersFlag.Value.(flag.Getter).Get().(int)
+	w := *workers
 	if w < 1 {
 		w = 1
 	} else if w > len(files) {
@@ -107,12 +108,6 @@ func printSummary(results []cleanerResult) int {
 func main() {
 	cfg := parseArgs(os.Args)
 	if cfg == nil {
-		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		// Reuse the shared flag creation function
-		fs := createFlagSet(os.Args[0])
-		fs.SetOutput(os.Stderr)
-		fs.PrintDefaults()
 		os.Exit(1)
 	}
 
