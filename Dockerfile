@@ -1,7 +1,5 @@
 FROM golang:1.25-alpine AS builder
 
-ARG TARGETARCH
-
 WORKDIR /build
 
 ENV CGO_ENABLED=0
