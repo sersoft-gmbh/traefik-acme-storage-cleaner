@@ -55,6 +55,16 @@ func generateTestCertificate(notBefore, notAfter time.Time) ([]byte, error) {
 	return certPEM, nil
 }
 
+// mustGenerateTestCertificate creates a test certificate or fails the test
+func mustGenerateTestCertificate(t *testing.T, notBefore, notAfter time.Time) []byte {
+	t.Helper()
+	cert, err := generateTestCertificate(notBefore, notAfter)
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+	return cert
+}
+
 // createTestACMEFile creates a test ACME storage file
 func createTestACMEFile(t *testing.T, filename string, data map[string]*acme.StoredData) {
 	t.Helper()
@@ -128,10 +138,7 @@ func TestIsExpired(t *testing.T) {
 		{
 			name: "valid certificate",
 			cert: acme.Certificate{
-				Certificate: func() []byte {
-					cert, _ := generateTestCertificate(now.Add(-24*time.Hour), now.Add(24*time.Hour))
-					return cert
-				}(),
+				Certificate: mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour)),
 			},
 			checkTime:   now,
 			wantExpired: false,
@@ -140,10 +147,7 @@ func TestIsExpired(t *testing.T) {
 		{
 			name: "expired certificate",
 			cert: acme.Certificate{
-				Certificate: func() []byte {
-					cert, _ := generateTestCertificate(now.Add(-48*time.Hour), now.Add(-24*time.Hour))
-					return cert
-				}(),
+				Certificate: mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour)),
 			},
 			checkTime:   now,
 			wantExpired: true,
@@ -199,8 +203,8 @@ func TestProcessFile(t *testing.T) {
 			name: "file with expired certificates",
 			setupFile: func(dir string) string {
 				filename := filepath.Join(dir, "acme-expired.json")
-				expiredCert, _ := generateTestCertificate(now.Add(-48*time.Hour), now.Add(-24*time.Hour))
-				validCert, _ := generateTestCertificate(now.Add(-24*time.Hour), now.Add(24*time.Hour))
+				expiredCert := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+				validCert := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
 
 				data := map[string]*acme.StoredData{
 					"default": {
@@ -231,8 +235,8 @@ func TestProcessFile(t *testing.T) {
 			name: "file with no expired certificates",
 			setupFile: func(dir string) string {
 				filename := filepath.Join(dir, "acme-valid.json")
-				validCert1, _ := generateTestCertificate(now.Add(-24*time.Hour), now.Add(24*time.Hour))
-				validCert2, _ := generateTestCertificate(now.Add(-12*time.Hour), now.Add(48*time.Hour))
+				validCert1 := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
+				validCert2 := mustGenerateTestCertificate(t, now.Add(-12*time.Hour), now.Add(48*time.Hour))
 
 				data := map[string]*acme.StoredData{
 					"default": {
@@ -263,8 +267,8 @@ func TestProcessFile(t *testing.T) {
 			name: "file with all expired certificates",
 			setupFile: func(dir string) string {
 				filename := filepath.Join(dir, "acme-all-expired.json")
-				expiredCert1, _ := generateTestCertificate(now.Add(-72*time.Hour), now.Add(-48*time.Hour))
-				expiredCert2, _ := generateTestCertificate(now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+				expiredCert1 := mustGenerateTestCertificate(t, now.Add(-72*time.Hour), now.Add(-48*time.Hour))
+				expiredCert2 := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
 
 				data := map[string]*acme.StoredData{
 					"default": {
@@ -372,7 +376,7 @@ func TestProcessFiles(t *testing.T) {
 
 	// Create test files
 	file1 := filepath.Join(tempDir, "acme1.json")
-	validCert1, _ := generateTestCertificate(now.Add(-24*time.Hour), now.Add(24*time.Hour))
+	validCert1 := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
 	data1 := map[string]*acme.StoredData{
 		"default": {
 			Certificates: []*acme.CertAndStore{
@@ -388,7 +392,7 @@ func TestProcessFiles(t *testing.T) {
 	createTestACMEFile(t, file1, data1)
 
 	file2 := filepath.Join(tempDir, "acme2.json")
-	expiredCert2, _ := generateTestCertificate(now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+	expiredCert2 := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
 	data2 := map[string]*acme.StoredData{
 		"default": {
 			Certificates: []*acme.CertAndStore{
@@ -444,7 +448,7 @@ func TestProcessFilePreservesPermissions(t *testing.T) {
 	now := time.Now()
 
 	filename := filepath.Join(tempDir, "acme-perms.json")
-	expiredCert, _ := generateTestCertificate(now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+	expiredCert := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
 
 	data := map[string]*acme.StoredData{
 		"default": {
@@ -488,8 +492,8 @@ func TestProcessFileWithMultipleResolvers(t *testing.T) {
 	now := time.Now()
 
 	filename := filepath.Join(tempDir, "acme-multi-resolver.json")
-	expiredCert, _ := generateTestCertificate(now.Add(-48*time.Hour), now.Add(-24*time.Hour))
-	validCert, _ := generateTestCertificate(now.Add(-24*time.Hour), now.Add(24*time.Hour))
+	expiredCert := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+	validCert := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
 
 	data := map[string]*acme.StoredData{
 		"resolver1": {
