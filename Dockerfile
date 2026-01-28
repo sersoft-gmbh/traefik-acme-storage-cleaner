@@ -6,7 +6,8 @@ ARG TARGETARCH
 WORKDIR /build
 
 ENV CGO_ENABLED=0
-ENV GOOS=linux
+ENV GOOS=$TARGETOS
+ENV GOARCH=$TARGETARCH
 ENV GOCACHE=/root/.cache/go-build
 
 COPY go.mod go.sum* ./
@@ -15,7 +16,7 @@ RUN go mod download
 COPY *.go ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o traefik-acme-storage-cleaner .
+    go build -ldflags '-extldflags "-static"' -o traefik-acme-storage-cleaner .
 
 
 FROM scratch
