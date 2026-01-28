@@ -8,8 +8,10 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -613,5 +615,327 @@ func TestProcessFileWithMultipleResolvers(t *testing.T) {
 	}
 	if result.remainingCerts != 1 {
 		t.Errorf("processFile() remainingCerts = %d, want 1", result.remainingCerts)
+	}
+}
+
+func TestParseArgs(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectNil     bool
+		expectedFiles []string
+		minWorkers    int
+		maxWorkers    int
+	}{
+		{
+			name:          "valid single file",
+			args:          []string{"prog", "file1.json"},
+			expectNil:     false,
+			expectedFiles: []string{"file1.json"},
+			minWorkers:    1,
+			maxWorkers:    1,
+		},
+		{
+			name:          "valid multiple files",
+			args:          []string{"prog", "file1.json", "file2.json", "file3.json"},
+			expectNil:     false,
+			expectedFiles: []string{"file1.json", "file2.json", "file3.json"},
+			minWorkers:    1,
+			maxWorkers:    3,
+		},
+		{
+			name:          "valid with workers flag",
+			args:          []string{"prog", "-workers", "4", "file1.json", "file2.json"},
+			expectNil:     false,
+			expectedFiles: []string{"file1.json", "file2.json"},
+			minWorkers:    2,
+			maxWorkers:    2,
+		},
+		{
+			name:          "workers less than 1 adjusted to 1",
+			args:          []string{"prog", "-workers", "0", "file1.json"},
+			expectNil:     false,
+			expectedFiles: []string{"file1.json"},
+			minWorkers:    1,
+			maxWorkers:    1,
+		},
+		{
+			name:          "workers more than files adjusted to file count",
+			args:          []string{"prog", "-workers", "10", "file1.json", "file2.json"},
+			expectNil:     false,
+			expectedFiles: []string{"file1.json", "file2.json"},
+			minWorkers:    2,
+			maxWorkers:    2,
+		},
+		{
+			name:      "no files provided",
+			args:      []string{"prog"},
+			expectNil: true,
+		},
+		{
+			name:      "invalid flag",
+			args:      []string{"prog", "-invalid", "file1.json"},
+			expectNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := parseArgs(tt.args)
+			if tt.expectNil {
+				if cfg != nil {
+					t.Errorf("parseArgs() expected nil, got %+v", cfg)
+				}
+				return
+			}
+
+			if cfg == nil {
+				t.Fatal("parseArgs() returned nil, expected config")
+			}
+
+			if len(cfg.files) != len(tt.expectedFiles) {
+				t.Errorf("parseArgs() files count = %d, want %d", len(cfg.files), len(tt.expectedFiles))
+			}
+
+			for i, file := range tt.expectedFiles {
+				if i >= len(cfg.files) {
+					break
+				}
+				if cfg.files[i] != file {
+					t.Errorf("parseArgs() files[%d] = %s, want %s", i, cfg.files[i], file)
+				}
+			}
+
+			if cfg.workers < tt.minWorkers || cfg.workers > tt.maxWorkers {
+				t.Errorf("parseArgs() workers = %d, want between %d and %d", cfg.workers, tt.minWorkers, tt.maxWorkers)
+			}
+		})
+	}
+}
+
+func TestPrintSummary(t *testing.T) {
+	tests := []struct {
+		name         string
+		results      []cleanerResult
+		expectedExit int
+	}{
+		{
+			name: "all successful with expired certs",
+			results: []cleanerResult{
+				{
+					filename:       "file1.json",
+					err:            nil,
+					totalCerts:     5,
+					expiredCerts:   2,
+					remainingCerts: 3,
+				},
+				{
+					filename:       "file2.json",
+					err:            nil,
+					totalCerts:     3,
+					expiredCerts:   1,
+					remainingCerts: 2,
+				},
+			},
+			expectedExit: 0,
+		},
+		{
+			name: "all successful no expired certs",
+			results: []cleanerResult{
+				{
+					filename:       "file1.json",
+					err:            nil,
+					totalCerts:     5,
+					expiredCerts:   0,
+					remainingCerts: 5,
+				},
+			},
+			expectedExit: 0,
+		},
+		{
+			name: "some failures",
+			results: []cleanerResult{
+				{
+					filename:       "file1.json",
+					err:            nil,
+					totalCerts:     5,
+					expiredCerts:   2,
+					remainingCerts: 3,
+				},
+				{
+					filename:       "file2.json",
+					err:            fmt.Errorf("file not found"),
+					totalCerts:     0,
+					expiredCerts:   0,
+					remainingCerts: 0,
+				},
+			},
+			expectedExit: 1,
+		},
+		{
+			name: "all failures",
+			results: []cleanerResult{
+				{
+					filename:       "file1.json",
+					err:            fmt.Errorf("error 1"),
+					totalCerts:     0,
+					expiredCerts:   0,
+					remainingCerts: 0,
+				},
+				{
+					filename:       "file2.json",
+					err:            fmt.Errorf("error 2"),
+					totalCerts:     0,
+					expiredCerts:   0,
+					remainingCerts: 0,
+				},
+			},
+			expectedExit: 1,
+		},
+		{
+			name:         "empty results",
+			results:      []cleanerResult{},
+			expectedExit: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Capture stdout by temporarily redirecting it
+			// For simplicity in this test, we'll just verify the exit code
+			exitCode := printSummary(tt.results)
+			if exitCode != tt.expectedExit {
+				t.Errorf("printSummary() exit code = %d, want %d", exitCode, tt.expectedExit)
+			}
+		})
+	}
+}
+
+func TestMainEndToEnd(t *testing.T) {
+	// Build the binary for testing
+	binPath := filepath.Join(t.TempDir(), "traefik-acme-storage-cleaner")
+	if runtime.GOOS == "windows" {
+		binPath += ".exe"
+	}
+
+	buildCmd := exec.Command("go", "build", "-o", binPath, ".")
+	buildCmd.Dir = "."
+	if output, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to build binary for testing: %v\nOutput: %s", err, output)
+	}
+
+	now := time.Now()
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name         string
+		setupFiles   func() []string
+		args         []string
+		expectExit   int
+		expectOutput string
+	}{
+		{
+			name: "process file with expired certs",
+			setupFiles: func() []string {
+				filename := filepath.Join(tempDir, "test-expired.json")
+				expiredCert := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+				validCert := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
+
+				data := map[string]*acme.StoredData{
+					"default": {
+						Certificates: []*acme.CertAndStore{
+							{
+								Certificate: acme.Certificate{
+									Certificate: expiredCert,
+									Domain:      types.Domain{Main: "expired.example.com"},
+								},
+							},
+							{
+								Certificate: acme.Certificate{
+									Certificate: validCert,
+									Domain:      types.Domain{Main: "valid.example.com"},
+								},
+							},
+						},
+					},
+				}
+				createTestACMEFile(t, filename, data)
+				return []string{filename}
+			},
+			expectExit:   0,
+			expectOutput: "Removed 1 expired certificate(s), 1 remaining",
+		},
+		{
+			name: "no files provided",
+			setupFiles: func() []string {
+				return []string{}
+			},
+			expectExit:   1,
+			expectOutput: "Usage:",
+		},
+		{
+			name: "non-existent file",
+			setupFiles: func() []string {
+				return []string{filepath.Join(tempDir, "non-existent.json")}
+			},
+			expectExit:   1,
+			expectOutput: "ERROR",
+		},
+		{
+			name: "valid file with no expired certs",
+			setupFiles: func() []string {
+				filename := filepath.Join(tempDir, "test-valid.json")
+				validCert := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
+
+				data := map[string]*acme.StoredData{
+					"default": {
+						Certificates: []*acme.CertAndStore{
+							{
+								Certificate: acme.Certificate{
+									Certificate: validCert,
+									Domain:      types.Domain{Main: "valid.example.com"},
+								},
+							},
+						},
+					},
+				}
+				createTestACMEFile(t, filename, data)
+				return []string{filename}
+			},
+			expectExit:   0,
+			expectOutput: "No expired certificates found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := tt.setupFiles()
+			args := append([]string{}, files...)
+			if len(tt.args) > 0 {
+				args = append(tt.args, args...)
+			}
+
+			cmd := exec.Command(binPath, args...)
+			output, err := cmd.CombinedOutput()
+
+			// Check exit code
+			exitCode := 0
+			if err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					exitCode = exitErr.ExitCode()
+				} else {
+					t.Fatalf("Failed to run command: %v", err)
+				}
+			}
+
+			if exitCode != tt.expectExit {
+				t.Errorf("Exit code = %d, want %d\nOutput: %s", exitCode, tt.expectExit, output)
+			}
+
+			// Check output contains expected string
+			if tt.expectOutput != "" && !strings.Contains(string(output), tt.expectOutput) {
+				t.Errorf("Output does not contain %q\nOutput: %s", tt.expectOutput, output)
+			}
+		})
 	}
 }
