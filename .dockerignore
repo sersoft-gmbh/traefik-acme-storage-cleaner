@@ -1,0 +1,16 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+LICENSE
+
+# Build artifacts
+traefik-acme-storage-cleaner
+*.test
+*.out
+
+# IDE
+.idea
+.vscode
