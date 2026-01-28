@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -148,6 +149,38 @@ func TestIsExpired(t *testing.T) {
 			name: "expired certificate",
 			cert: acme.Certificate{
 				Certificate: mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour)),
+			},
+			checkTime:   now,
+			wantExpired: true,
+			wantErr:     false,
+		},
+		{
+			name: "valid DER certificate",
+			cert: acme.Certificate{
+				Certificate: func() []byte {
+					pemCert := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
+					block, _ := pem.Decode(pemCert)
+					if block == nil {
+						t.Fatal("Failed to decode PEM certificate for DER test")
+					}
+					return block.Bytes // Return raw DER bytes
+				}(),
+			},
+			checkTime:   now,
+			wantExpired: false,
+			wantErr:     false,
+		},
+		{
+			name: "expired DER certificate",
+			cert: acme.Certificate{
+				Certificate: func() []byte {
+					pemCert := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+					block, _ := pem.Decode(pemCert)
+					if block == nil {
+						t.Fatal("Failed to decode PEM certificate for DER test")
+					}
+					return block.Bytes // Return raw DER bytes
+				}(),
 			},
 			checkTime:   now,
 			wantExpired: true,
@@ -371,63 +404,25 @@ func TestProcessFile(t *testing.T) {
 }
 
 func TestProcessFiles(t *testing.T) {
-	tempDir := t.TempDir()
 	now := time.Now()
-
-	// Create test files
-	file1 := filepath.Join(tempDir, "acme1.json")
-	validCert1 := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
-	data1 := map[string]*acme.StoredData{
-		"default": {
-			Certificates: []*acme.CertAndStore{
-				{
-					Certificate: acme.Certificate{
-						Certificate: validCert1,
-						Domain:      types.Domain{Main: "valid1.example.com"},
-					},
-				},
-			},
-		},
-	}
-	createTestACMEFile(t, file1, data1)
-
-	file2 := filepath.Join(tempDir, "acme2.json")
-	expiredCert2 := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
-	data2 := map[string]*acme.StoredData{
-		"default": {
-			Certificates: []*acme.CertAndStore{
-				{
-					Certificate: acme.Certificate{
-						Certificate: expiredCert2,
-						Domain:      types.Domain{Main: "expired2.example.com"},
-					},
-				},
-			},
-		},
-	}
-	createTestACMEFile(t, file2, data2)
 
 	tests := []struct {
 		name            string
-		files           []string
 		workers         int
 		expectedResults int
 	}{
 		{
 			name:            "process multiple files with single worker",
-			files:           []string{file1, file2},
 			workers:         1,
 			expectedResults: 2,
 		},
 		{
 			name:            "process multiple files with multiple workers",
-			files:           []string{file1, file2},
 			workers:         2,
 			expectedResults: 2,
 		},
 		{
 			name:            "process single file",
-			files:           []string{file1},
 			workers:         1,
 			expectedResults: 1,
 		},
@@ -435,15 +430,101 @@ func TestProcessFiles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results := processFiles(tt.files, tt.workers)
+			// Create fresh test files for each subtest to avoid race conditions
+			tempDir := t.TempDir()
+			
+			// Create test file 1 with valid cert
+			file1 := filepath.Join(tempDir, "acme1.json")
+			validCert1 := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
+			data1 := map[string]*acme.StoredData{
+				"default": {
+					Certificates: []*acme.CertAndStore{
+						{
+							Certificate: acme.Certificate{
+								Certificate: validCert1,
+								Domain:      types.Domain{Main: "valid1.example.com"},
+							},
+						},
+					},
+				},
+			}
+			createTestACMEFile(t, file1, data1)
+
+			// For tests processing multiple files, create file2 with expired cert
+			var files []string
+			if tt.expectedResults == 2 {
+				files = []string{file1}
+				file2 := filepath.Join(tempDir, "acme2.json")
+				expiredCert2 := mustGenerateTestCertificate(t, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+				data2 := map[string]*acme.StoredData{
+					"default": {
+						Certificates: []*acme.CertAndStore{
+							{
+								Certificate: acme.Certificate{
+									Certificate: expiredCert2,
+									Domain:      types.Domain{Main: "expired2.example.com"},
+								},
+							},
+						},
+					},
+				}
+				createTestACMEFile(t, file2, data2)
+				files = append(files, file2)
+			} else {
+				files = []string{file1}
+			}
+			
+			results := processFiles(files, tt.workers)
 			if len(results) != tt.expectedResults {
 				t.Errorf("processFiles() returned %d results, want %d", len(results), tt.expectedResults)
+			}
+			
+			// Verify each result corresponds to an input file
+			fileSet := make(map[string]bool)
+			for _, file := range files {
+				fileSet[file] = true
+			}
+			
+			for _, result := range results {
+				if !fileSet[result.filename] {
+					t.Errorf("processFiles() returned result for unexpected file %s", result.filename)
+				}
+				// Verify no errors for our test files
+				if result.err != nil {
+					t.Errorf("processFiles() result for %s has unexpected error: %v", result.filename, result.err)
+				}
+			}
+			
+			// Verify expected counts for known files
+			for _, result := range results {
+				if result.filename == file1 {
+					// file1 has 1 valid cert, should be 0 expired, 1 remaining
+					if result.expiredCerts != 0 {
+						t.Errorf("file1 result: expiredCerts = %d, want 0", result.expiredCerts)
+					}
+					if result.remainingCerts != 1 {
+						t.Errorf("file1 result: remainingCerts = %d, want 1", result.remainingCerts)
+					}
+				} else if strings.Contains(result.filename, "acme2.json") {
+					// file2 has 1 expired cert, should be 1 expired, 0 remaining
+					if result.expiredCerts != 1 {
+						t.Errorf("file2 result: expiredCerts = %d, want 1", result.expiredCerts)
+					}
+					if result.remainingCerts != 0 {
+						t.Errorf("file2 result: remainingCerts = %d, want 0", result.remainingCerts)
+					}
+				}
 			}
 		})
 	}
 }
 
 func TestProcessFilePreservesPermissions(t *testing.T) {
+	// Skip this test on Windows where Unix permissions don't apply
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping Unix permission test on Windows")
+	}
+	
 	tempDir := t.TempDir()
 	now := time.Now()
 
