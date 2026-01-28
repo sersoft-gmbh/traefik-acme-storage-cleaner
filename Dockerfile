@@ -5,10 +5,10 @@ ARG TARGETARCH
 
 WORKDIR /build
 
-ENV CGO_ENABLED=0
 ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
 ENV GOCACHE=/root/.cache/go-build
+ENV CGO_ENABLED=0
 
 COPY go.mod go.sum* ./
 RUN go mod download
