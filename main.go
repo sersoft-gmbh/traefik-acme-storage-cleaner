@@ -28,29 +28,42 @@ type cleanerResult struct {
 	remainingCerts int
 }
 
-func main() {
-	var workers int
-	flag.IntVar(&workers, "workers", defaultWorkers(), "Number of parallel workers")
-	flag.Parse()
+type config struct {
+	files   []string
+	workers int
+}
 
-	files := flag.Args()
-	fileCount := len(files)
-	if fileCount == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		flag.PrintDefaults()
-		os.Exit(1)
+// parseArgs parses command-line arguments and returns the configuration.
+// Returns nil if arguments are invalid (help/usage should be displayed).
+func parseArgs(args []string) *config {
+	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
+	workers := fs.Int("workers", defaultWorkers(), "Number of parallel workers")
+	
+	if err := fs.Parse(args[1:]); err != nil {
+		return nil
 	}
 
-	if workers < 1 {
-		workers = 1
-	} else if workers > fileCount {
-		workers = fileCount
+	files := fs.Args()
+	if len(files) == 0 {
+		return nil
 	}
 
-	results := processFiles(files, workers)
+	// Adjust worker count
+	w := *workers
+	if w < 1 {
+		w = 1
+	} else if w > len(files) {
+		w = len(files)
+	}
 
-	// Print summary
+	return &config{
+		files:   files,
+		workers: w,
+	}
+}
+
+// printSummary prints the results summary and returns the exit code.
+func printSummary(results []cleanerResult) int {
 	fmt.Println("\nSummary:")
 	fmt.Println("--------")
 	totalFiles := 0
@@ -77,8 +90,23 @@ func main() {
 		totalFiles, successFiles, totalExpired)
 
 	if successFiles < totalFiles {
+		return 1
+	}
+	return 0
+}
+
+func main() {
+	cfg := parseArgs(os.Args)
+	if cfg == nil {
+		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
+
+	results := processFiles(cfg.files, cfg.workers)
+	exitCode := printSummary(results)
+	os.Exit(exitCode)
 }
 
 func processFiles(files []string, workers int) []cleanerResult {
