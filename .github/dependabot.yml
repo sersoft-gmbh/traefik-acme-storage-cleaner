@@ -23,7 +23,3 @@ updates:
       interval: daily
       time: "07:00"
       timezone: Europe/Berlin
-    groups:
-      traefik:
-        patterns:
-          - "github.com/traefik/traefik/*"
