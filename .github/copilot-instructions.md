@@ -6,23 +6,26 @@ This is a small, focused Go CLI application that cleans expired certificates fro
 
 **Repository Statistics:**
 - Language: Go 1.25
-- Size: ~12 files (excluding dependencies)
+- Size: ~14 files (excluding dependencies)
 - Type: CLI application
 - Main Dependencies: github.com/traefik/traefik/v3 v3.6.7
+- Test Coverage: 65.1%
 
 ## Project Structure
 
 ```
 .
 ├── main.go                 # Main application code (single file application)
+├── main_test.go            # Unit tests for main application
 ├── go.mod                  # Go module definition
 ├── go.sum                  # Go dependencies checksums
-├── Dockerfile              # Multi-stage Docker build
+├── Dockerfile              # Multi-stage, multi-arch Docker build
 ├── README.md               # User documentation
 ├── LICENSE                 # License file
 └── .github/
     ├── workflows/
     │   ├── build.yml       # CI build workflow (multi-OS, multi-arch)
+    │   ├── test.yml        # CI test workflow (runs tests with coverage)
     │   ├── docker-publish.yml  # Docker image publishing on release
     │   └── enable-auto-merge.yml
     ├── dependabot.yml      # Dependabot configuration
@@ -67,17 +70,46 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build .
 docker build -t traefik-acme-storage-cleaner .
 ```
 
-The Dockerfile uses a multi-stage build:
-1. Stage 1: golang:1.25-alpine builder with caching
+The Dockerfile uses a multi-stage, multi-architecture build:
+1. Stage 1: golang:1.25-alpine builder with cross-compilation support
+   - Uses `--platform=$BUILDPLATFORM` for native builder execution
+   - Supports TARGETOS and TARGETARCH build arguments for cross-compilation
+   - Supports linux/amd64 and linux/arm64 architectures
 2. Stage 2: scratch base for minimal image size
 
 **Build time:** ~3-5 minutes on first build, faster with Docker layer caching.
 
+**Multi-arch build:**
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t traefik-acme-storage-cleaner .
+```
+
 ### Testing
 
-**No formal test suite exists.** The repository does not contain any `*_test.go` files or testing infrastructure.
+**Unit tests exist in main_test.go** with comprehensive test coverage.
 
-To manually test the application:
+**Run tests:**
+```bash
+go test -v ./...
+```
+
+**Run tests with coverage:**
+```bash
+go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+go tool cover -func=coverage.out
+```
+
+**Test Coverage:** 65.1% (minimum threshold: 60%)
+
+**Test coverage includes:**
+- Core functions: `isExpired()`, `formatDomain()`, `defaultWorkers()`
+- File processing: Expired cert removal, permission preservation, multi-resolver support, error handling
+- Concurrency: Parallel file processing with configurable workers
+- Edge cases: Empty files, invalid JSON, missing files, malformed certificates
+
+**Test certificates:** Generated programmatically using `crypto/x509` with adjustable `NotBefore`/`NotAfter` timestamps. Helper function `mustGenerateTestCertificate()` ensures test failures on cert generation errors.
+
+**Manual testing:**
 1. Build the binary: `go build .`
 2. Create a test ACME JSON file with sample certificates
 3. Run: `./traefik-acme-storage-cleaner test-acme.json`
@@ -107,9 +139,20 @@ docker run --rm -v /path/to/acme:/data ghcr.io/sersoft-gmbh/traefik-acme-storage
 - Go version: Read from go.mod using actions/setup-go@v6
 - Each build runs with `CGO_ENABLED=0` and uses Go module caching
 
+### Test Workflow (.github/workflows/test.yml)
+- Triggers on: push to main, pull requests to main
+- Runs tests with race detector: `go test -v -race -coverprofile=coverage.out -covermode=atomic ./...`
+- Displays coverage breakdown: `go tool cover -func=coverage.out`
+- Enforces 60% minimum coverage threshold
+- Reports total coverage percentage
+- Fails if coverage drops below threshold
+
 ### Docker Publish Workflow (.github/workflows/docker-publish.yml)
 - Triggers on: Release published
 - Publishes to: GitHub Container Registry (ghcr.io)
+- Multi-architecture support: linux/amd64 and linux/arm64
+- Uses QEMU for emulation: `docker/setup-qemu-action@v3`
+- Uses buildx for multi-platform builds: `docker/setup-buildx-action@v3`
 - Tags generated:
   - `vX.Y.Z` (full semver)
   - `vX.Y` (major.minor)
@@ -159,6 +202,13 @@ The application uses a worker pool pattern:
 - Progress/status messages to `os.Stdout`
 - Use emoji in output: ✓ for success, ❌ for errors
 
+### Testing Guidelines
+- All new features must have corresponding unit tests in main_test.go
+- Maintain test coverage at ≥60% (enforced by CI)
+- Use `mustGenerateTestCertificate()` helper for test certificate generation
+- Test edge cases: empty data, invalid input, error conditions
+- Tests run with race detector in CI: write thread-safe code
+
 ### File Handling
 - Preserve original file permissions when writing
 - Use `os.ReadFile` and `os.WriteFile` (not deprecated `ioutil`)
@@ -171,11 +221,21 @@ The application uses a worker pool pattern:
 
 ## Common Tasks
 
+### Adding New Features
+1. Implement the feature in main.go
+2. Add comprehensive tests in main_test.go
+3. Run `go test -v ./...` to verify tests pass
+4. Check coverage: `go test -v -race -coverprofile=coverage.out -covermode=atomic ./...`
+5. Ensure coverage remains ≥60%
+6. Format code: `go fmt main.go main_test.go`
+7. Commit with descriptive message
+
 ### Adding New Command-Line Flags
 1. Declare flag variable in main()
 2. Use `flag.IntVar`, `flag.StringVar`, etc.
 3. Ensure `flag.Parse()` is called before accessing
 4. Update usage message if needed
+5. Add tests for the new flag behavior
 
 ### Modifying Certificate Logic
 - Certificate expiration check: See `isExpired()` function
@@ -203,12 +263,14 @@ go mod tidy
 ## Important Notes
 
 ### Always Remember
-- This is a **single-file application** (main.go) - keep it simple
-- **No tests exist** - don't try to run `go test`
+- This is a **single-file application** (main.go with tests in main_test.go) - keep it simple
+- **Tests exist in main_test.go** - always run `go test -v ./...` after changes
+- **Test coverage must be ≥60%** - enforced by CI
 - **CGO_ENABLED=0** must always be set for builds to ensure static linking
 - Worker count defaults to available CPUs (respects container limits)
 - The application modifies files in-place (preserves permissions)
 - Files are processed in parallel - order is not guaranteed
+- Docker builds support multi-arch: linux/amd64 and linux/arm64
 
 ### Known Limitations
 - No dry-run mode
@@ -217,17 +279,21 @@ go mod tidy
 - Error handling treats unparseable certificates as expired (safe default)
 
 ### Validation Steps for Changes
-Since there are no automated tests:
-1. Build the application: `go build .`
-2. Create or obtain a test ACME JSON file
-3. Run the application on the test file
-4. Verify:
-   - Application completes without crashing
-   - Output messages are correct and formatted properly
-   - File is modified correctly (if certificates were expired)
-   - File permissions are preserved
-   - Multi-file processing works correctly
-5. Test with edge cases:
+Always run automated tests first, then perform manual validation:
+1. Run unit tests: `go test -v ./...`
+2. Run tests with coverage: `go test -v -race -coverprofile=coverage.out -covermode=atomic ./...`
+3. Verify coverage: `go tool cover -func=coverage.out` (must be ≥60%)
+4. Build the application: `go build .`
+5. Manual validation (if needed):
+   - Create or obtain a test ACME JSON file
+   - Run the application on the test file
+   - Verify:
+     - Application completes without crashing
+     - Output messages are correct and formatted properly
+     - File is modified correctly (if certificates were expired)
+     - File permissions are preserved
+     - Multi-file processing works correctly
+6. Test with edge cases (covered by unit tests):
    - Empty ACME file: `{}`
    - File with no expired certificates
    - File with all expired certificates
@@ -243,10 +309,17 @@ Since there are no automated tests:
 ## Example Workflow for Code Changes
 
 1. Modify main.go
-2. Format code: `go fmt main.go`
-3. Build: `go build .`
-4. Test manually with sample files
-5. If working, commit changes
-6. Push to branch and create PR
-7. CI will build for all platforms automatically
-8. Merge when builds pass
+2. Update or add tests in main_test.go if needed
+3. Format code: `go fmt main.go main_test.go`
+4. Run tests: `go test -v ./...`
+5. Check coverage: `go test -v -race -coverprofile=coverage.out -covermode=atomic ./... && go tool cover -func=coverage.out`
+6. Build: `go build .`
+7. Test manually with sample files (if needed)
+8. If all tests pass and coverage is ≥60%, commit changes
+9. Push to branch and create PR
+10. CI will automatically:
+    - Build for all 6 platform combinations
+    - Run tests with race detector
+    - Check coverage threshold (≥60%)
+    - Build multi-arch Docker images (on release)
+11. Merge when all CI checks pass
