@@ -34,7 +34,8 @@ func main() {
 	flag.Parse()
 
 	files := flag.Args()
-	if len(files) == 0 {
+	fileCount := len(files)
+	if fileCount == 0 {
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		flag.PrintDefaults()
@@ -43,6 +44,8 @@ func main() {
 
 	if workers < 1 {
 		workers = 1
+	} else if workers > fileCount {
+		workers = fileCount
 	}
 
 	results := processFiles(files, workers)
