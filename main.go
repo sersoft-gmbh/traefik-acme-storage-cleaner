@@ -99,7 +99,11 @@ func main() {
 	if cfg == nil {
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		flag.PrintDefaults()
+		// Create a temporary FlagSet to print defaults since cfg is nil
+		fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+		fs.SetOutput(os.Stderr)
+		fs.Int("workers", defaultWorkers(), "Number of parallel workers")
+		fs.PrintDefaults()
 		os.Exit(1)
 	}
 
