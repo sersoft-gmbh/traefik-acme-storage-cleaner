@@ -38,7 +38,6 @@ type config struct {
 func parseArgs(args []string) *config {
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	workers := fs.Int("workers", defaultWorkers(), "Number of parallel workers")
-	
 	if err := fs.Parse(args[1:]); err != nil {
 		return nil
 	}
