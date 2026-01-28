@@ -50,18 +50,6 @@ traefik-acme-storage-cleaner -workers 8 /path/to/acme1.json /path/to/acme2.json
 docker run --rm -v /path/to/acme/storage:/data ghcr.io/sersoft-gmbh/traefik-acme-storage-cleaner:latest /data/acme.json
 ```
 
-## Output Example
-
-```
-Removing expired certificate for expired.example.com in resolver myresolver
-
-Summary:
---------
-✓ /path/to/acme.json: Removed 2 expired certificate(s), 5 remaining
-
-Processed 1 file(s), 1 successful, 2 total expired certificate(s) removed
-```
-
 
 ## Docker Image Publishing
 
@@ -75,4 +63,3 @@ Docker images are automatically published to GitHub Container Registry (ghcr.io)
 ## License
 
 This project is licensed under the terms specified in the [LICENSE](LICENSE) file.
-
