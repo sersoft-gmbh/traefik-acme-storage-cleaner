@@ -26,6 +26,7 @@ jobs:
           check-latest: true
           cache: true
       - name: Run tests
+        shell: bash
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
