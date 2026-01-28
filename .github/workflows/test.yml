@@ -24,14 +24,8 @@ jobs:
           cache: true
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-      - name: Display coverage
-        run: go tool cover -func=coverage.out
-      - name: Check coverage threshold
-        run: |
-          coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-          echo "Total coverage: ${coverage}%"
-          threshold=60
-          if (( $(awk -v cov="$coverage" -v thr="$threshold" 'BEGIN {print (cov < thr)}') )); then
-            echo "Coverage ${coverage}% is below threshold of ${threshold}%"
-            exit 1
-          fi
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
