@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    open-pull-requests-limit: 10
+    schedule:
+      interval: daily
+      time: "07:00"
+      timezone: Europe/Berlin
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: daily
+      time: "07:00"
+      timezone: Europe/Berlin
+
+  - package-ecosystem: gomod
+    directory: /
+    open-pull-requests-limit: 10
+    schedule:
+      interval: daily
+      time: "07:00"
+      timezone: Europe/Berlin
+    groups:
+      traefik:
+        patterns:
+          - "github.com/traefik/traefik/*"

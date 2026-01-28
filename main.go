@@ -9,36 +9,10 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/traefik/traefik/v3/pkg/provider/acme"
+	"github.com/traefik/traefik/v3/pkg/types"
 )
-
-// Domain represents a domain with SANs
-type Domain struct {
-	Main string   `json:"main,omitempty"`
-	SANs []string `json:"sans,omitempty"`
-}
-
-// CertAndStore allows mapping a TLS certificate to a TLS store
-// This matches the Traefik ACME storage format which has a flat structure
-type CertAndStore struct {
-	Certificate string `json:"certificate,omitempty"`
-	Key         string `json:"key,omitempty"`
-	Domain      Domain `json:"domain,omitempty"`
-	Store       string `json:"store,omitempty"`
-}
-
-// Account represents an ACME account
-type Account struct {
-	Email        string                 `json:"email,omitempty"`
-	Registration map[string]interface{} `json:"registration,omitempty"`
-	PrivateKey   string                 `json:"privateKey,omitempty"`
-	KeyType      string                 `json:"keyType,omitempty"`
-}
-
-// StoredData represents the data stored by Traefik
-type StoredData struct {
-	Account      *Account        `json:"account,omitempty"`
-	Certificates []*CertAndStore `json:"certificates,omitempty"`
-}
 
 const (
 	defaultWorkers = 4
@@ -160,7 +134,7 @@ func processFile(filename string) cleanerResult {
 	originalPerm := fileInfo.Mode().Perm()
 
 	// Parse JSON into the Traefik ACME storage format
-	var storageData map[string]*StoredData
+	var storageData map[string]*acme.StoredData
 	if err := json.Unmarshal(data, &storageData); err != nil {
 		result.err = fmt.Errorf("failed to parse JSON: %w", err)
 		return result
@@ -179,9 +153,9 @@ func processFile(filename string) cleanerResult {
 		result.totalCerts += originalCount
 
 		// Filter out expired certificates
-		var validCerts []*CertAndStore
+		var validCerts []*acme.CertAndStore
 		for _, certAndStore := range storedData.Certificates {
-			expired, parseErr := isExpired(certAndStore, now)
+			expired, parseErr := isExpired(certAndStore.Certificate, now)
 			if parseErr != nil {
 				fmt.Fprintf(os.Stderr, "Warning: Failed to parse certificate for %s: %v (treating as expired)\n",
 					formatDomain(certAndStore.Domain), parseErr)
@@ -221,16 +195,16 @@ func processFile(filename string) cleanerResult {
 	return result
 }
 
-func isExpired(certAndStore *CertAndStore, now time.Time) (bool, error) {
-	if certAndStore == nil || len(certAndStore.Certificate) == 0 {
+func isExpired(certificate acme.Certificate, now time.Time) (bool, error) {
+	if len(certificate.Certificate) == 0 {
 		return true, fmt.Errorf("certificate data is empty")
 	}
 
 	// Parse the certificate
-	block, _ := pem.Decode([]byte(certAndStore.Certificate))
+	block, _ := pem.Decode(certificate.Certificate)
 	if block == nil {
 		// Not PEM encoded, try to parse as DER
-		cert, err := x509.ParseCertificate([]byte(certAndStore.Certificate))
+		cert, err := x509.ParseCertificate(certificate.Certificate)
 		if err != nil {
 			return true, fmt.Errorf("failed to parse certificate: %w", err)
 		}
@@ -245,7 +219,7 @@ func isExpired(certAndStore *CertAndStore, now time.Time) (bool, error) {
 	return now.After(cert.NotAfter), nil
 }
 
-func formatDomain(domain Domain) string {
+func formatDomain(domain types.Domain) string {
 	if domain.Main == "" {
 		return "unknown"
 	}
