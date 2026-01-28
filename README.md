@@ -1,20 +1,11 @@
-# traefik-acme-storage-cleaner
+# Traefik ACME Storage Cleaner
 
-Cleans expired certificates from Traefik ACME storage files.
+Cleans expired certificates from [Traefik](https://traefik.io/traefik) ACME storage files.
 
 ## Overview
 
-This is a Go CLI application that reads Traefik ACME storage JSON files, identifies and removes expired certificates, and saves the cleaned files back. The application processes multiple files in parallel for optimal performance.
-
-## Features
-
-- ✅ Reads Traefik ACME storage JSON files
-- ✅ Identifies expired certificates using certificate expiration dates
-- ✅ Removes expired certificates while preserving valid ones
-- ✅ Processes multiple files in parallel (configurable worker count)
-- ✅ Maintains JSON structure compatible with Traefik
-- ✅ Provides detailed summary of operations
-- ✅ Available as a standalone binary or Docker container
+This is a small CLI application that reads Traefik ACME storage JSON files, removes expired certificates, and saves the cleaned files back.
+The application processes multiple files in parallel for optimal performance.
 
 ## Installation
 
@@ -40,22 +31,17 @@ go build -o traefik-acme-storage-cleaner .
 
 ## Usage
 
-### Basic Usage
-
-```bash
-traefik-acme-storage-cleaner /path/to/acme.json
-```
-
-### Process Multiple Files
-
 ```bash
 traefik-acme-storage-cleaner /path/to/acme1.json /path/to/acme2.json
 ```
 
 ### Configure Parallel Workers
 
+By default, the tool uses ncpu workers to process multiple files in parallel.
+If you want to limit the number of workers, you can use the `-workers` flag:
+
 ```bash
-traefik-acme-storage-cleaner -workers 8 /path/to/acme.json
+traefik-acme-storage-cleaner -workers 8 /path/to/acme1.json /path/to/acme2.json
 ```
 
 ### Using Docker
@@ -63,10 +49,6 @@ traefik-acme-storage-cleaner -workers 8 /path/to/acme.json
 ```bash
 docker run --rm -v /path/to/acme/storage:/data ghcr.io/sersoft-gmbh/traefik-acme-storage-cleaner:latest /data/acme.json
 ```
-
-## Command-Line Options
-
-- `-workers int` - Number of parallel workers (default: 4)
 
 ## Output Example
 
@@ -80,32 +62,6 @@ Summary:
 Processed 1 file(s), 1 successful, 2 total expired certificate(s) removed
 ```
 
-## ACME Storage Format
-
-The tool expects Traefik ACME storage files in the following JSON format:
-
-```json
-{
-  "myresolver": {
-    "account": {
-      "email": "user@example.com",
-      "registration": {},
-      "privateKey": "...",
-      "keyType": "RSA4096"
-    },
-    "certificates": [
-      {
-        "domain": {
-          "main": "example.com",
-          "sans": ["www.example.com"]
-        },
-        "certificate": "-----BEGIN CERTIFICATE-----\n...",
-        "key": "-----BEGIN PRIVATE KEY-----\n..."
-      }
-    ]
-  }
-}
-```
 
 ## Docker Image Publishing
 
@@ -115,19 +71,6 @@ Docker images are automatically published to GitHub Container Registry (ghcr.io)
 - Major tag (e.g., `v1`)
 - SHA tag for specific commits
 
-## Development
-
-### Building
-
-```bash
-go build -o traefik-acme-storage-cleaner .
-```
-
-### Building Docker Image
-
-```bash
-docker build -t traefik-acme-storage-cleaner .
-```
 
 ## License
 
