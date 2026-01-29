@@ -620,68 +620,93 @@ func TestProcessFileWithMultipleResolvers(t *testing.T) {
 
 func TestParseArgs(t *testing.T) {
 	tests := []struct {
-		name          string
-		args          []string
-		expectNil     bool
-		expectedFiles []string
-		minWorkers    int
-		maxWorkers    int
+		name             string
+		args             []string
+		expectNil        bool
+		expectedExitCode int
+		expectedFiles    []string
+		minWorkers       int
+		maxWorkers       int
 	}{
 		{
-			name:          "valid single file",
-			args:          []string{"prog", "file1.json"},
-			expectNil:     false,
-			expectedFiles: []string{"file1.json"},
-			minWorkers:    1,
-			maxWorkers:    1,
+			name:             "valid single file",
+			args:             []string{"prog", "file1.json"},
+			expectNil:        false,
+			expectedExitCode: 0,
+			expectedFiles:    []string{"file1.json"},
+			minWorkers:       1,
+			maxWorkers:       1,
 		},
 		{
-			name:          "valid multiple files",
-			args:          []string{"prog", "file1.json", "file2.json", "file3.json"},
-			expectNil:     false,
-			expectedFiles: []string{"file1.json", "file2.json", "file3.json"},
-			minWorkers:    1,
-			maxWorkers:    3,
+			name:             "valid multiple files",
+			args:             []string{"prog", "file1.json", "file2.json", "file3.json"},
+			expectNil:        false,
+			expectedExitCode: 0,
+			expectedFiles:    []string{"file1.json", "file2.json", "file3.json"},
+			minWorkers:       1,
+			maxWorkers:       3,
 		},
 		{
-			name:          "valid with workers flag",
-			args:          []string{"prog", "-workers", "4", "file1.json", "file2.json"},
-			expectNil:     false,
-			expectedFiles: []string{"file1.json", "file2.json"},
-			minWorkers:    2,
-			maxWorkers:    2,
+			name:             "valid with workers flag",
+			args:             []string{"prog", "-workers", "4", "file1.json", "file2.json"},
+			expectNil:        false,
+			expectedExitCode: 0,
+			expectedFiles:    []string{"file1.json", "file2.json"},
+			minWorkers:       2,
+			maxWorkers:       2,
 		},
 		{
-			name:          "workers less than 1 adjusted to 1",
-			args:          []string{"prog", "-workers", "0", "file1.json"},
-			expectNil:     false,
-			expectedFiles: []string{"file1.json"},
-			minWorkers:    1,
-			maxWorkers:    1,
+			name:             "workers less than 1 adjusted to 1",
+			args:             []string{"prog", "-workers", "0", "file1.json"},
+			expectNil:        false,
+			expectedExitCode: 0,
+			expectedFiles:    []string{"file1.json"},
+			minWorkers:       1,
+			maxWorkers:       1,
 		},
 		{
-			name:          "workers more than files adjusted to file count",
-			args:          []string{"prog", "-workers", "10", "file1.json", "file2.json"},
-			expectNil:     false,
-			expectedFiles: []string{"file1.json", "file2.json"},
-			minWorkers:    2,
-			maxWorkers:    2,
+			name:             "workers more than files adjusted to file count",
+			args:             []string{"prog", "-workers", "10", "file1.json", "file2.json"},
+			expectNil:        false,
+			expectedExitCode: 0,
+			expectedFiles:    []string{"file1.json", "file2.json"},
+			minWorkers:       2,
+			maxWorkers:       2,
 		},
 		{
-			name:      "no files provided",
-			args:      []string{"prog"},
-			expectNil: true,
+			name:             "no files provided",
+			args:             []string{"prog"},
+			expectNil:        true,
+			expectedExitCode: 1,
 		},
 		{
-			name:      "invalid flag",
-			args:      []string{"prog", "-invalid", "file1.json"},
-			expectNil: true,
+			name:             "invalid flag",
+			args:             []string{"prog", "-invalid", "file1.json"},
+			expectNil:        true,
+			expectedExitCode: 1,
+		},
+		{
+			name:             "help flag short",
+			args:             []string{"prog", "-h"},
+			expectNil:        true,
+			expectedExitCode: 0,
+		},
+		{
+			name:             "help flag long",
+			args:             []string{"prog", "--help"},
+			expectNil:        true,
+			expectedExitCode: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := parseArgs(tt.args)
+			cfg, exitCode := parseArgs(tt.args)
+
+			if exitCode != tt.expectedExitCode {
+				t.Errorf("parseArgs() exitCode = %d, want %d", exitCode, tt.expectedExitCode)
+			}
+
 			if tt.expectNil {
 				if cfg != nil {
 					t.Errorf("parseArgs() expected nil, got %+v", cfg)
@@ -830,6 +855,7 @@ func TestMainEndToEnd(t *testing.T) {
 	tests := []struct {
 		name         string
 		setupFiles   func() []string
+		args         []string
 		expectExit   int
 		expectOutput string
 	}{
@@ -904,13 +930,38 @@ func TestMainEndToEnd(t *testing.T) {
 			expectExit:   0,
 			expectOutput: "No expired certificates found",
 		},
+		{
+			name: "help flag short",
+			setupFiles: func() []string {
+				return []string{}
+			},
+			args:         []string{"-h"},
+			expectExit:   0,
+			expectOutput: "Usage:",
+		},
+		{
+			name: "help flag long",
+			setupFiles: func() []string {
+				return []string{}
+			},
+			args:         []string{"--help"},
+			expectExit:   0,
+			expectOutput: "Usage:",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			files := tt.setupFiles()
 
-			cmd := exec.Command(binPath, files...)
+			var cmdArgs []string
+			if len(tt.args) > 0 {
+				cmdArgs = append(tt.args, files...)
+			} else {
+				cmdArgs = files
+			}
+
+			cmd := exec.Command(binPath, cmdArgs...)
 			output, err := cmd.CombinedOutput()
 
 			// Check exit code
