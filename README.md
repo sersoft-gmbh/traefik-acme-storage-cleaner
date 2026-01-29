@@ -1,5 +1,10 @@
 # Traefik ACME Storage Cleaner
 
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/sersoft-gmbh/traefik-acme-storage-cleaner)
+[![GitHub release](https://img.shields.io/github/release/sersoft-gmbh/traefik-acme-storage-cleaner.svg?style=flat)](https://github.com/sersoft-gmbh/traefik-acme-storage-cleaner/releases/latest)
+![Tests](https://github.com/sersoft-gmbh/traefik-acme-storage-cleaner/workflows/Test/badge.svg)
+[![codecov](https://codecov.io/gh/sersoft-gmbh/traefik-acme-storage-cleaner/graph/badge.svg?token=c8eVyMfk3z)](https://codecov.io/gh/sersoft-gmbh/traefik-acme-storage-cleaner)
+
 Cleans expired certificates from [Traefik](https://traefik.io/traefik) ACME storage files.
 
 ## Overview
