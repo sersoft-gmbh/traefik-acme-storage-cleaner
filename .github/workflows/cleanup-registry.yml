@@ -22,8 +22,8 @@ jobs:
     steps:
       - id: package-name
         env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: echo "package-name=$(echo $GITHUB_REPOSITORY | cut -d'/' -f2)" >> $GITHUB_OUTPUT
+          GH_REPO_AND_OWNER: ${{ github.repository }}
+        run: echo "package-name=$(echo "${GH_REPO_AND_OWNER}" | cut -d'/' -f2)" >> "${GITHUB_OUTPUT}"
       - uses: dataaxiom/ghcr-cleanup-action@v1
         with:
           package: ${{ steps.package-name.outputs.package-name }}
