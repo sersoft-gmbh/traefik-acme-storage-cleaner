@@ -20,9 +20,13 @@ jobs:
     concurrency:
       group: repo-${{ github.repository }}-registry # Do not run in parallel!
     steps:
+      - id: package-name
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: echo "package-name=$(echo $GITHUB_REPOSITORY | cut -d'/' -f2)" >> $GITHUB_OUTPUT
       - uses: dataaxiom/ghcr-cleanup-action@v1
         with:
-          package: ${{ github.repository }}
+          package: ${{ steps.package-name.outputs.package-name }}
           delete-untagged: "true"
           delete-ghost-images: "true"
           delete-partial-images: "true"
