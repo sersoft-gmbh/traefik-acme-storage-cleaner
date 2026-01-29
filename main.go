@@ -33,6 +33,13 @@ type config struct {
 	workers int
 }
 
+// printUsage prints the usage information and available options.
+func printUsage(fs *flag.FlagSet, progName string) {
+	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", progName)
+	fmt.Fprintf(os.Stderr, "\nOptions:\n")
+	fs.PrintDefaults()
+}
+
 // parseArgs parses command-line arguments and returns the configuration.
 // Returns nil if arguments are invalid (help/usage has been displayed).
 func parseArgs(args []string) *config {
@@ -42,18 +49,14 @@ func parseArgs(args []string) *config {
 	if err := fs.Parse(args[1:]); err != nil {
 		// flag.ErrHelp is returned when -h or --help is used
 		if err == flag.ErrHelp {
-			fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", args[0])
-			fmt.Fprintf(os.Stderr, "\nOptions:\n")
-			fs.PrintDefaults()
+			printUsage(fs, args[0])
 		}
 		return nil
 	}
 
 	files := fs.Args()
 	if len(files) == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <acme-storage-file> [<acme-storage-file>...]\n", args[0])
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		fs.PrintDefaults()
+		printUsage(fs, args[0])
 		return nil
 	}
 
