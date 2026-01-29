@@ -29,9 +29,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},prefix=v,priority=999
+            type=semver,pattern={{major}}.{{minor}},prefix=v,priority=990
+            type=semver,pattern={{major}},prefix=v,priority=900
             type=sha
       - uses: docker/build-push-action@v6
         with:
