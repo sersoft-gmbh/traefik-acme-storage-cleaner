@@ -18,7 +18,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     concurrency:
-      group: cleanup-registry # Do not run in parallel!
+      group: repo-${{ github.repository }}-registry # Do not run in parallel!
     steps:
       - uses: dataaxiom/ghcr-cleanup-action@v1
         with:
