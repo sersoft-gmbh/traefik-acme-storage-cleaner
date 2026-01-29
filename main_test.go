@@ -342,6 +342,20 @@ func TestProcessFile(t *testing.T) {
 			expectedRemaining: 0,
 		},
 		{
+			name: "completely empty file (zero bytes)",
+			setupFile: func(dir string) string {
+				filename := filepath.Join(dir, "acme-zero-bytes.json")
+				// Create a file with zero bytes (not even empty JSON)
+				if err := os.WriteFile(filename, []byte{}, 0644); err != nil {
+					t.Fatalf("Failed to write zero-byte file: %v", err)
+				}
+				return filename
+			},
+			expectedErr:       false,
+			expectedExpired:   0,
+			expectedRemaining: 0,
+		},
+		{
 			name: "non-existent file",
 			setupFile: func(dir string) string {
 				return filepath.Join(dir, "non-existent.json")
@@ -739,9 +753,10 @@ func TestParseArgs(t *testing.T) {
 
 func TestPrintSummary(t *testing.T) {
 	tests := []struct {
-		name         string
-		results      []cleanerResult
-		expectedExit int
+		name              string
+		results           []cleanerResult
+		expectedExit      int
+		expectedOutputEnd string // Expected ending of the final summary line
 	}{
 		{
 			name: "all successful with expired certs",
@@ -761,7 +776,8 @@ func TestPrintSummary(t *testing.T) {
 					remainingCerts: 2,
 				},
 			},
-			expectedExit: 0,
+			expectedExit:      0,
+			expectedOutputEnd: "Processed 2 file(s), 2 successful, 3 total expired certificate(s) removed",
 		},
 		{
 			name: "all successful no expired certs",
@@ -774,7 +790,8 @@ func TestPrintSummary(t *testing.T) {
 					remainingCerts: 5,
 				},
 			},
-			expectedExit: 0,
+			expectedExit:      0,
+			expectedOutputEnd: "Processed 1 file(s), 1 successful, 0 total expired certificate(s) removed",
 		},
 		{
 			name: "some failures",
@@ -794,7 +811,8 @@ func TestPrintSummary(t *testing.T) {
 					remainingCerts: 0,
 				},
 			},
-			expectedExit: 1,
+			expectedExit:      1,
+			expectedOutputEnd: "Processed 2 file(s), 1 successful, 2 total expired certificate(s) removed",
 		},
 		{
 			name: "all failures",
@@ -814,22 +832,83 @@ func TestPrintSummary(t *testing.T) {
 					remainingCerts: 0,
 				},
 			},
-			expectedExit: 1,
+			expectedExit:      1,
+			expectedOutputEnd: "Processed 2 file(s), 0 successful, 0 total expired certificate(s) removed",
 		},
 		{
-			name:         "empty results",
-			results:      []cleanerResult{},
-			expectedExit: 0,
+			name:              "empty results",
+			results:           []cleanerResult{},
+			expectedExit:      0,
+			expectedOutputEnd: "Processed 0 file(s), 0 successful, 0 total expired certificate(s) removed",
+		},
+		{
+			name: "empty file (zero bytes)",
+			results: []cleanerResult{
+				{
+					filename:       "empty.json",
+					err:            nil,
+					totalCerts:     0,
+					expiredCerts:   0,
+					remainingCerts: 0,
+				},
+			},
+			expectedExit:      0,
+			expectedOutputEnd: "Processed 1 file(s), 1 successful, 1 empty, 0 total expired certificate(s) removed",
+		},
+		{
+			name: "mixed files with empty file",
+			results: []cleanerResult{
+				{
+					filename:       "file1.json",
+					err:            nil,
+					totalCerts:     5,
+					expiredCerts:   2,
+					remainingCerts: 3,
+				},
+				{
+					filename:       "empty.json",
+					err:            nil,
+					totalCerts:     0,
+					expiredCerts:   0,
+					remainingCerts: 0,
+				},
+				{
+					filename:       "file3.json",
+					err:            nil,
+					totalCerts:     3,
+					expiredCerts:   0,
+					remainingCerts: 3,
+				},
+			},
+			expectedExit:      0,
+			expectedOutputEnd: "Processed 3 file(s), 3 successful, 1 empty, 2 total expired certificate(s) removed",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Capture stdout by temporarily redirecting it
-			// For simplicity in this test, we'll just verify the exit code
+			// Capture stdout to verify the output
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
 			exitCode := printSummary(tt.results)
+
+			// Restore stdout and read captured output
+			w.Close()
+			os.Stdout = oldStdout
+			capturedOutput := make([]byte, 4096)
+			n, _ := r.Read(capturedOutput)
+			output := string(capturedOutput[:n])
+
 			if exitCode != tt.expectedExit {
 				t.Errorf("printSummary() exit code = %d, want %d", exitCode, tt.expectedExit)
+			}
+
+			// Verify the final summary line is present in the output
+			if !strings.Contains(output, tt.expectedOutputEnd) {
+				t.Errorf("printSummary() output does not contain expected line:\nwant: %q\ngot output:\n%s",
+					tt.expectedOutputEnd, output)
 			}
 		})
 	}
