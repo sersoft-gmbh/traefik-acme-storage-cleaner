@@ -39,7 +39,6 @@ func parseArgs(args []string) *config {
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	workers := fs.Int("workers", defaultWorkers(), "Number of parallel workers")
-	
 	if err := fs.Parse(args[1:]); err != nil {
 		// flag.ErrHelp is returned when -h or --help is used
 		if err == flag.ErrHelp {
