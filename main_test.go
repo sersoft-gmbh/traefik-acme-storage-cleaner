@@ -434,7 +434,7 @@ func TestProcessFiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create fresh test files for each subtest to avoid race conditions
 			tempDir := t.TempDir()
-			
+
 			// Create test file 1 with valid cert
 			file1 := filepath.Join(tempDir, "acme1.json")
 			validCert1 := mustGenerateTestCertificate(t, now.Add(-24*time.Hour), now.Add(24*time.Hour))
@@ -475,18 +475,18 @@ func TestProcessFiles(t *testing.T) {
 			} else {
 				files = []string{file1}
 			}
-			
+
 			results := processFiles(files, tt.workers)
 			if len(results) != tt.expectedResults {
 				t.Errorf("processFiles() returned %d results, want %d", len(results), tt.expectedResults)
 			}
-			
+
 			// Verify each result corresponds to an input file
 			fileSet := make(map[string]bool)
 			for _, file := range files {
 				fileSet[file] = true
 			}
-			
+
 			for _, result := range results {
 				if !fileSet[result.filename] {
 					t.Errorf("processFiles() returned result for unexpected file %s", result.filename)
@@ -496,7 +496,7 @@ func TestProcessFiles(t *testing.T) {
 					t.Errorf("processFiles() result for %s has unexpected error: %v", result.filename, result.err)
 				}
 			}
-			
+
 			// Verify expected counts for known files
 			for _, result := range results {
 				if result.filename == file1 {
@@ -526,7 +526,7 @@ func TestProcessFilePreservesPermissions(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping Unix permission test on Windows")
 	}
-	
+
 	tempDir := t.TempDir()
 	now := time.Now()
 
@@ -830,7 +830,6 @@ func TestMainEndToEnd(t *testing.T) {
 	tests := []struct {
 		name         string
 		setupFiles   func() []string
-		args         []string
 		expectExit   int
 		expectOutput string
 	}{
@@ -910,12 +909,8 @@ func TestMainEndToEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			files := tt.setupFiles()
-			args := append([]string{}, files...)
-			if len(tt.args) > 0 {
-				args = append(tt.args, args...)
-			}
 
-			cmd := exec.Command(binPath, args...)
+			cmd := exec.Command(binPath, files...)
 			output, err := cmd.CombinedOutput()
 
 			// Check exit code
