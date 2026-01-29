@@ -40,9 +40,10 @@ func printUsage(fs *flag.FlagSet, progName string) {
 	fs.PrintDefaults()
 }
 
-// parseArgs parses command-line arguments and returns the configuration.
-// Returns nil if arguments are invalid (help/usage has been displayed).
-func parseArgs(args []string) *config {
+// parseArgs parses command-line arguments and returns the configuration and exit code.
+// Returns nil config with exit code 0 when help is requested.
+// Returns nil config with exit code 1 when arguments are invalid.
+func parseArgs(args []string) (*config, int) {
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	workers := fs.Int("workers", defaultWorkers(), "Number of parallel workers")
@@ -50,14 +51,15 @@ func parseArgs(args []string) *config {
 		// flag.ErrHelp is returned when -h or --help is used
 		if err == flag.ErrHelp {
 			printUsage(fs, args[0])
+			return nil, 0
 		}
-		return nil
+		return nil, 1
 	}
 
 	files := fs.Args()
 	if len(files) == 0 {
 		printUsage(fs, args[0])
-		return nil
+		return nil, 1
 	}
 
 	// Adjust worker count
@@ -71,7 +73,7 @@ func parseArgs(args []string) *config {
 	return &config{
 		files:   files,
 		workers: w,
-	}
+	}, 0
 }
 
 // printSummary prints the results summary and returns the exit code.
@@ -108,13 +110,13 @@ func printSummary(results []cleanerResult) int {
 }
 
 func main() {
-	cfg := parseArgs(os.Args)
+	cfg, exitCode := parseArgs(os.Args)
 	if cfg == nil {
-		os.Exit(1)
+		os.Exit(exitCode)
 	}
 
 	results := processFiles(cfg.files, cfg.workers)
-	exitCode := printSummary(results)
+	exitCode = printSummary(results)
 	os.Exit(exitCode)
 }
 
