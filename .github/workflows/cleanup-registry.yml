@@ -20,7 +20,8 @@ jobs:
     concurrency:
       group: repo-${{ github.repository }}-registry # Do not run in parallel!
     steps:
-      - id: package-name
+      - name: Get Package Name
+        id: package-name
         env:
           GH_REPO_AND_OWNER: ${{ github.repository }}
         run: echo "package-name=$(echo "${GH_REPO_AND_OWNER}" | cut -d'/' -f2)" >> "${GITHUB_OUTPUT}"
