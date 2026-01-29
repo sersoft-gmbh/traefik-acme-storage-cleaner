@@ -777,7 +777,7 @@ func TestPrintSummary(t *testing.T) {
 				},
 			},
 			expectedExit:      0,
-			expectedOutputEnd: "Processed 2 file(s), 2 successful, 3 total expired certificate(s) removed",
+			expectedOutputEnd: "Processed 2 file(s), 3 total expired certificate(s) removed",
 		},
 		{
 			name: "all successful no expired certs",
@@ -791,7 +791,7 @@ func TestPrintSummary(t *testing.T) {
 				},
 			},
 			expectedExit:      0,
-			expectedOutputEnd: "Processed 1 file(s), 1 successful, 0 total expired certificate(s) removed",
+			expectedOutputEnd: "Processed 1 file(s), 0 total expired certificate(s) removed",
 		},
 		{
 			name: "some failures",
@@ -812,7 +812,7 @@ func TestPrintSummary(t *testing.T) {
 				},
 			},
 			expectedExit:      1,
-			expectedOutputEnd: "Processed 2 file(s), 1 successful, 2 total expired certificate(s) removed",
+			expectedOutputEnd: "Processed 2 file(s), 1 failed, 2 total expired certificate(s) removed",
 		},
 		{
 			name: "all failures",
@@ -833,13 +833,13 @@ func TestPrintSummary(t *testing.T) {
 				},
 			},
 			expectedExit:      1,
-			expectedOutputEnd: "Processed 2 file(s), 0 successful, 0 total expired certificate(s) removed",
+			expectedOutputEnd: "Processed 2 file(s), 2 failed, 0 total expired certificate(s) removed",
 		},
 		{
 			name:              "empty results",
 			results:           []cleanerResult{},
 			expectedExit:      0,
-			expectedOutputEnd: "Processed 0 file(s), 0 successful, 0 total expired certificate(s) removed",
+			expectedOutputEnd: "Processed 0 file(s), 0 total expired certificate(s) removed",
 		},
 		{
 			name: "empty file (zero bytes)",
@@ -853,7 +853,7 @@ func TestPrintSummary(t *testing.T) {
 				},
 			},
 			expectedExit:      0,
-			expectedOutputEnd: "Processed 1 file(s), 1 successful, 1 empty, 0 total expired certificate(s) removed",
+			expectedOutputEnd: "Processed 1 file(s), 1 empty, 0 total expired certificate(s) removed",
 		},
 		{
 			name: "mixed files with empty file",
@@ -881,7 +881,35 @@ func TestPrintSummary(t *testing.T) {
 				},
 			},
 			expectedExit:      0,
-			expectedOutputEnd: "Processed 3 file(s), 3 successful, 1 empty, 2 total expired certificate(s) removed",
+			expectedOutputEnd: "Processed 3 file(s), 1 empty, 2 total expired certificate(s) removed",
+		},
+		{
+			name: "mixed with failures and empty files",
+			results: []cleanerResult{
+				{
+					filename:       "file1.json",
+					err:            nil,
+					totalCerts:     5,
+					expiredCerts:   2,
+					remainingCerts: 3,
+				},
+				{
+					filename:       "file2.json",
+					err:            fmt.Errorf("read error"),
+					totalCerts:     0,
+					expiredCerts:   0,
+					remainingCerts: 0,
+				},
+				{
+					filename:       "empty.json",
+					err:            nil,
+					totalCerts:     0,
+					expiredCerts:   0,
+					remainingCerts: 0,
+				},
+			},
+			expectedExit:      1,
+			expectedOutputEnd: "Processed 3 file(s), 1 failed, 1 empty, 2 total expired certificate(s) removed",
 		},
 	}
 

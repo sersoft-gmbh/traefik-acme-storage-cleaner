@@ -81,15 +81,15 @@ func printSummary(results []cleanerResult) int {
 	fmt.Println("\nSummary:")
 	fmt.Println("--------")
 	totalFiles := 0
-	successFiles := 0
+	failedFiles := 0
 	totalExpired := 0
 	emptyFiles := 0
 	for _, result := range results {
 		totalFiles++
 		if result.err != nil {
+			failedFiles++
 			fmt.Printf("❌ %s: ERROR - %v\n", result.filename, result.err)
 		} else {
-			successFiles++
 			totalExpired += result.expiredCerts
 			// Check if file was empty (no certificates at all)
 			if result.totalCerts == 0 && result.expiredCerts == 0 && result.remainingCerts == 0 {
@@ -105,15 +105,17 @@ func printSummary(results []cleanerResult) int {
 		}
 	}
 
-	if emptyFiles > 0 {
-		fmt.Printf("\nProcessed %d file(s), %d successful, %d empty, %d total expired certificate(s) removed\n",
-			totalFiles, successFiles, emptyFiles, totalExpired)
-	} else {
-		fmt.Printf("\nProcessed %d file(s), %d successful, %d total expired certificate(s) removed\n",
-			totalFiles, successFiles, totalExpired)
+	// Build the final summary line
+	fmt.Printf("\nProcessed %d file(s)", totalFiles)
+	if failedFiles > 0 {
+		fmt.Printf(", %d failed", failedFiles)
 	}
+	if emptyFiles > 0 {
+		fmt.Printf(", %d empty", emptyFiles)
+	}
+	fmt.Printf(", %d total expired certificate(s) removed\n", totalExpired)
 
-	if successFiles < totalFiles {
+	if failedFiles > 0 {
 		return 1
 	}
 	return 0
