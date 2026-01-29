@@ -83,6 +83,7 @@ func printSummary(results []cleanerResult) int {
 	totalFiles := 0
 	successFiles := 0
 	totalExpired := 0
+	emptyFiles := 0
 	for _, result := range results {
 		totalFiles++
 		if result.err != nil {
@@ -90,7 +91,11 @@ func printSummary(results []cleanerResult) int {
 		} else {
 			successFiles++
 			totalExpired += result.expiredCerts
-			if result.expiredCerts > 0 {
+			// Check if file was empty (no certificates at all)
+			if result.totalCerts == 0 && result.expiredCerts == 0 && result.remainingCerts == 0 {
+				emptyFiles++
+				fmt.Printf("✓ %s: Skipped empty file\n", result.filename)
+			} else if result.expiredCerts > 0 {
 				fmt.Printf("✓ %s: Removed %d expired certificate(s), %d remaining\n",
 					result.filename, result.expiredCerts, result.remainingCerts)
 			} else {
@@ -100,8 +105,13 @@ func printSummary(results []cleanerResult) int {
 		}
 	}
 
-	fmt.Printf("\nProcessed %d file(s), %d successful, %d total expired certificate(s) removed\n",
-		totalFiles, successFiles, totalExpired)
+	if emptyFiles > 0 {
+		fmt.Printf("\nProcessed %d file(s), %d successful, %d empty, %d total expired certificate(s) removed\n",
+			totalFiles, successFiles, emptyFiles, totalExpired)
+	} else {
+		fmt.Printf("\nProcessed %d file(s), %d successful, %d total expired certificate(s) removed\n",
+			totalFiles, successFiles, totalExpired)
+	}
 
 	if successFiles < totalFiles {
 		return 1
@@ -166,6 +176,12 @@ func processFile(filename string) cleanerResult {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		result.err = fmt.Errorf("failed to read file: %w", err)
+		return result
+	}
+
+	// Check if the file is empty
+	if len(data) == 0 {
+		// Empty file is not an error - Traefik creates empty files for unused resolvers
 		return result
 	}
 
