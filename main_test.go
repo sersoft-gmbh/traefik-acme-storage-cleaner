@@ -892,23 +892,41 @@ func TestPrintSummary(t *testing.T) {
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 
-			exitCode := printSummary(tt.results)
+			// Run the function in a goroutine and signal when done
+			done := make(chan int)
+			var exitCode int
+			go func() {
+				exitCode = printSummary(tt.results)
+				w.Close() // Close after writing is complete
+				done <- exitCode
+			}()
 
-			// Restore stdout and read captured output
-			w.Close()
+			// Read all output from the pipe
+			var output strings.Builder
+			buf := make([]byte, 1024)
+			for {
+				n, err := r.Read(buf)
+				if n > 0 {
+					output.Write(buf[:n])
+				}
+				if err != nil {
+					break
+				}
+			}
+
+			// Wait for function to complete and restore stdout
+			exitCode = <-done
 			os.Stdout = oldStdout
-			capturedOutput := make([]byte, 4096)
-			n, _ := r.Read(capturedOutput)
-			output := string(capturedOutput[:n])
 
 			if exitCode != tt.expectedExit {
 				t.Errorf("printSummary() exit code = %d, want %d", exitCode, tt.expectedExit)
 			}
 
 			// Verify the final summary line is present in the output
-			if !strings.Contains(output, tt.expectedOutputEnd) {
+			outputStr := output.String()
+			if !strings.Contains(outputStr, tt.expectedOutputEnd) {
 				t.Errorf("printSummary() output does not contain expected line:\nwant: %q\ngot output:\n%s",
-					tt.expectedOutputEnd, output)
+					tt.expectedOutputEnd, outputStr)
 			}
 		})
 	}
