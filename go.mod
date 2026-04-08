@@ -2,7 +2,7 @@ module github.com/sersoft-gmbh/traefik-acme-storage-cleaner
 
 go 1.25.0
 
-require github.com/traefik/traefik/v3 v3.6.12
+require github.com/traefik/traefik/v3 v3.6.13
 
 // Taken from github.com/traefik/traefik/go.mod
 replace (
