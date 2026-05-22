@@ -33,7 +33,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},prefix=v,priority=990
             type=semver,pattern={{major}},prefix=v,priority=900
             type=sha
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@v7.1.0
         with:
           context: .
           pull: true
