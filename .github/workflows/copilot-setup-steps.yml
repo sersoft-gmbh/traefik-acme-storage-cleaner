@@ -16,7 +16,7 @@ jobs:
     permissions: # Copilot will be given its own token for its operations.
       contents: read
     steps:
-      - uses: actions/checkout@v6 # If you do not check out your code, Copilot will do this for you.
+      - uses: actions/checkout@v7 # If you do not check out your code, Copilot will do this for you.
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
